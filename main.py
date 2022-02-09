@@ -36,7 +36,6 @@ root = Tk()
 root.title('RT Software')
 root.geometry("1300x500")
 
-
 # # fake data
 # data = [
 #     ["SF345", "SFG567", "VX.12.RT/0", "12\" GHU FALNGE", "20.89"],
@@ -117,17 +116,19 @@ def select_records(e):
     dn_entry.delete(0, END)
     desc_entry.delete(0, END)
     weight_entry.delete(0, END)
+    try:
+        # Grab record Number
+        selected = my_tree.focus()
+        # Grab record values
+        values = my_tree.item(selected, 'values')
 
-    # Grab record Number
-    selected = my_tree.focus()
-    # Grab record values
-    values = my_tree.item(selected, 'values')
-
-    pc_entry.insert(0, values[1])
-    ic_entry.insert(0, values[2])
-    dn_entry.insert(0, values[3])
-    desc_entry.insert(0, values[4])
-    weight_entry.insert(0, values[5])
+        pc_entry.insert(0, values[1])
+        ic_entry.insert(0, values[2])
+        dn_entry.insert(0, values[3])
+        desc_entry.insert(0, values[4])
+        weight_entry.insert(0, values[5])
+    except IndexError:
+        print("Index  error")
 
 
 # Update record
@@ -138,30 +139,36 @@ def update_records():
 
     conn = sqlite3.connect("data.db")
     cursor = conn.cursor()
-
-    cursor.execute("""
-        UPDATE rt SET 
-        prod_code = :prod_code,
-        item_code = :item_code,
-        draw_no = :draw_no,
-        desc = :desc,
-        weight = :weight
-        WHERE oid = :oid
-    """, {
-        "prod_code": pc_entry.get(),
-        "item_code": ic_entry.get(),
-        "draw_no": dn_entry.get(),
-        "desc": desc_entry.get(),
-        "weight": weight_entry.get(),
-        "oid": values[0]
-    })
+    try:
+        weight = float(weight_entry.get())
+        cursor.execute("""
+            UPDATE rt SET 
+            prod_code = :prod_code,
+            item_code = :item_code,
+            draw_no = :draw_no,
+            desc = :desc,
+            weight = :weight
+            WHERE oid = :oid
+        """, {
+            "prod_code": pc_entry.get(),
+            "item_code": ic_entry.get(),
+            "draw_no": dn_entry.get(),
+            "desc": desc_entry.get(),
+            "weight": weight,
+            "oid": values[0]
+        })
+        # Update record
+        my_tree.item(selected, text="",
+                     values=(
+                         values[0], pc_entry.get(), ic_entry.get(), dn_entry.get(), desc_entry.get(),
+                         weight_entry.get(),))
+    except ValueError:
+        messagebox.showerror("Error", "Enter number in Weight box!")
 
     conn.commit()
     conn.close()
 
-    # Update record
-    my_tree.item(selected, text="",
-                 values=(values[0], pc_entry.get(), ic_entry.get(), dn_entry.get(), desc_entry.get(), weight_entry.get(),))
+
     # Clear entry boxes
     pc_entry.delete(0, END)
     ic_entry.delete(0, END)
@@ -172,26 +179,29 @@ def update_records():
 
 # Add record
 def add_record():
-
     conn = sqlite3.connect("data.db")
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM rt WHERE prod_code = :prod_code", {"prod_code": pc_entry.get()})
     pc = cursor.fetchall()
-    print(pc)
+
     cursor.execute("SELECT * FROM rt WHERE item_code = :item_code", {"item_code": ic_entry.get()})
     ic = cursor.fetchall()
-    print(ic)
-    if not pc and not ic:
-        # cursor.execute("INSERT INTO rt VALUES (:prod_code, :item_code, :draw_no, :desc, :weight)", {
-        #     "prod_code": pc_entry.get(),
-        #     "item_code": ic_entry.get(),
-        #     "draw_no": dn_entry.get(),
-        #     "desc": desc_entry.get(),
-        #     "weight": weight_entry.get()
-        # })
-        messagebox.showinfo("showinfo", "Record doesnt exist")
-    else:
-        messagebox.showerror("showerror", "Record exists")
+    try:
+        weight = float(weight_entry.get())
+        if not pc and not ic:
+            cursor.execute("INSERT INTO rt VALUES (:prod_code, :item_code, :draw_no, :desc, :weight)", {
+                "prod_code": pc_entry.get(),
+                "item_code": ic_entry.get(),
+                "draw_no": dn_entry.get(),
+                "desc": desc_entry.get(),
+                "weight": weight
+            })
+
+        else:
+            messagebox.showerror("Error", "Record exists")
+    except ValueError:
+        messagebox.showerror("Error", "Enter number in Weight box!")
+
 
     conn.commit()
     conn.close()
@@ -252,20 +262,18 @@ update_button.grid(row=0, column=1, padx=10, pady=10)
 clear_button = Button(button_frame, text="Clear Entries", command=clear_entries)
 clear_button.grid(row=0, column=2, padx=10, pady=10)
 
-
 # Search entry
 search_entry = EntryWithPlaceholder(root, "Search...")
 
 
 def searched(e):
-
     # Clear The Treeview Table
     my_tree.delete(*my_tree.get_children())
     conn = sqlite3.connect("data.db")
     cursor = conn.cursor()
 
     # Filter by value entered in search entry
-    search_val = "%"+search_entry.get()+"%"
+    search_val = "%" + search_entry.get() + "%"
 
     cursor.execute("""SELECT rowid,* FROM rt WHERE
         prod_code LIKE :search OR
@@ -355,13 +363,13 @@ my_tree.heading("Drawing Number", text="Drawing Number", anchor=CENTER)
 my_tree.heading("Description", text="Description", anchor=CENTER)
 my_tree.heading("Weight", text="Weight", anchor=CENTER)
 
-
 # Create Striped Row Tags
 my_tree.tag_configure('oddrow', background="white")
 my_tree.tag_configure('evenrow', background="lightblue")
 
 
 my_tree.bind("<ButtonRelease-1>", select_records)
+
 search_entry.bind("<KeyRelease>", searched)
 
 # Run to pull data from database on start
