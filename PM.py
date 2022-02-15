@@ -6,7 +6,7 @@ import sqlite3
 
 # Create an entry with placeholder
 class EntryWithPlaceholder(tk.Entry):
-    def __init__(self, master=None, placeholder="PLACEHOLDER", color='grey'):
+    def __init__(self, master=None, placeholder="PLACEHOLDER", color='grey', *args, **kwargs):
         super().__init__(master)
 
         self.placeholder = placeholder
@@ -33,15 +33,9 @@ class EntryWithPlaceholder(tk.Entry):
 
 
 root = Tk()
-root.title('RT Software')
+root.title('Product master')
 root.geometry("1300x500")
 
-# # fake data
-# data = [
-#     ["SF345", "SFG567", "VX.12.RT/0", "12\" GHU FALNGE", "20.89"],
-#     ["RGB2000", "GR89IO", "FG3.13.RT/1", "13\" GHU BODY", "13.89"],
-#     ["JDSF79", "ASHDFJ8", "ER4.12.RT/0", "GHU BODY", "69.42"]
-# ]
 
 # Database setup
 conn = sqlite3.connect("data.db")
@@ -56,14 +50,6 @@ cursor.execute("""CREATE TABLE if not exists rt (
 )
 """)
 
-# for record in data:
-#     cursor.execute("INSERT INTO rt VALUES (:prod_code, :item_code, :draw_no, :desc, :weight)", {
-#         "prod_code": record[0],
-#         "item_code": record[1],
-#         "draw_no": record[2],
-#         "desc": record[3],
-#         "weight": record[4],
-#     })
 
 conn.commit()
 conn.close()
@@ -128,7 +114,7 @@ def select_records(e):
         desc_entry.insert(0, values[4])
         weight_entry.insert(0, values[5])
     except IndexError:
-        print("Index  error")
+        pass
 
 
 # Update record
@@ -186,6 +172,7 @@ def add_record():
 
     cursor.execute("SELECT * FROM rt WHERE item_code = :item_code", {"item_code": ic_entry.get()})
     ic = cursor.fetchall()
+    # Check whether data entered is a float for weight
     try:
         weight = float(weight_entry.get())
         if not pc and not ic:
@@ -218,6 +205,33 @@ def add_record():
 
     # Run to pull data from database on start
     query_db()
+
+
+# Delete record
+def delete_record():
+    # Confirm deletion
+    yes_no = messagebox.askyesno("Warning", "Delete the record?")
+    if yes_no:
+        # Deletion from Database
+        conn = sqlite3.connect("data.db")
+        cursor = conn.cursor()
+
+        # Grab the record number
+        selected = my_tree.focus()
+        values = my_tree.item(selected, 'values')
+        # print(values[0])
+        cursor.execute("DELETE from rt WHERE oid=" + values[0])
+
+        conn.commit()
+        conn.close()
+
+        # Deletion from tree
+        # Clear The Treeview Table
+        my_tree.delete(*my_tree.get_children())
+
+        # Run to pull data from database on start
+        query_db()
+    clear_entries()
 
 
 # Add entry boxes
@@ -259,11 +273,15 @@ add_button.grid(row=0, column=0, padx=10, pady=10)
 update_button = Button(button_frame, text="Update Record", command=update_records)
 update_button.grid(row=0, column=1, padx=10, pady=10)
 
+delete_button = Button(button_frame, text="Delete Record", command=delete_record)
+delete_button.grid(row=0, column=2, padx=10, pady=10)
+
 clear_button = Button(button_frame, text="Clear Entries", command=clear_entries)
-clear_button.grid(row=0, column=2, padx=10, pady=10)
+clear_button.grid(row=0, column=3, padx=10, pady=10)
+
 
 # Search entry
-search_entry = EntryWithPlaceholder(root, "Search...")
+search_entry = EntryWithPlaceholder(root, "Search...", borderwidth=5)
 
 
 def searched(e):
@@ -336,18 +354,18 @@ tree_scroll = Scrollbar(tree_frame)
 tree_scroll.pack(side=RIGHT, fill=Y)
 
 # Create The Treeview
-my_tree = ttk.Treeview(tree_frame, yscrollcommand=tree_scroll.set, selectmode="extended")
+my_tree = ttk.Treeview(tree_frame, yscrollcommand=tree_scroll.set, selectmode="browse")
 my_tree.pack()
 
 # Configure the Scrollbar
 tree_scroll.config(command=my_tree.yview)
 
 # Define Our Columns
-my_tree['columns'] = ("Sl No", "Product Code", "Item Code", "Drawing Number", "Description", "Weight")
+my_tree['columns'] = ("ID", "Product Code", "Item Code", "Drawing Number", "Description", "Weight")
 
 # Format Our Columns
 my_tree.column("#0", width=0, stretch=NO)
-my_tree.column("Sl No", anchor=W, width=75)
+my_tree.column("ID", anchor=W, width=75)
 my_tree.column("Product Code", anchor=W, width=200)
 my_tree.column("Item Code", anchor=W, width=200)
 my_tree.column("Drawing Number", anchor=CENTER, width=300)
@@ -356,7 +374,7 @@ my_tree.column("Weight", anchor=CENTER, width=150)
 
 # Create Headings
 my_tree.heading("#0", text="", anchor=W)
-my_tree.heading("Sl No", text="Sl No", anchor=W)
+my_tree.heading("ID", text="ID", anchor=W)
 my_tree.heading("Product Code", text="Product Code", anchor=W)
 my_tree.heading("Item Code", text="Item Code", anchor=W)
 my_tree.heading("Drawing Number", text="Drawing Number", anchor=CENTER)
