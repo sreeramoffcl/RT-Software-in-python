@@ -8,10 +8,10 @@ root.title("Menu")
 root.geometry("700x300")
 
 # Database setup
-conn = sqlite3.connect("data.db")
-cursor = conn.cursor()
+conn_mast = sqlite3.connect("masters.db")
+cursor_mast = conn_mast.cursor()
 
-cursor.execute("""CREATE TABLE if not exists prod_master (
+cursor_mast.execute("""CREATE TABLE if not exists prod_master (
     prod_code text,
     item_code text,
     draw_no text,
@@ -20,7 +20,7 @@ cursor.execute("""CREATE TABLE if not exists prod_master (
 )
 """)
 
-cursor.execute("""CREATE TABLE if not exists cust_master (
+cursor_mast.execute("""CREATE TABLE if not exists cust_master (
         cust_code text,
         cust_name text,
         add_1 text,
@@ -34,8 +34,33 @@ cursor.execute("""CREATE TABLE if not exists cust_master (
         remarks text
     )
     """)
-conn.commit()
-conn.close()
+conn_mast.commit()
+conn_mast.close()
+
+conn_trans = sqlite3.connect("transactions.db")
+cursor_trans = conn_trans.cursor()
+cursor_trans.execute("""CREATE TABLE if not exists mat_inw_prim (
+        sl_no text,
+        customer text,
+        dc_no text,
+        dc_date text
+    )
+    """)
+cursor_trans.execute("""CREATE TABLE if not exists mat_inw_sec (
+        uid text,
+        sl_no text,
+        rt_no text,
+        prod text,
+        ic text,
+        weight real,
+        grade text,
+        qty text,
+        coverage text,
+        remarks text
+    )
+    """)
+conn_trans.commit()
+conn_trans.close()
 
 
 def prod_master():

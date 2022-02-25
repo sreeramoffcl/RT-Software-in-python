@@ -42,7 +42,7 @@ def run_crm():
 
     # Enter data from db into treeview
     def query_db():
-        conn = sqlite3.connect("data.db")
+        conn = sqlite3.connect("masters.db")
         cursor = conn.cursor()
 
         cursor.execute("SELECT rowid,* FROM cust_master")
@@ -95,7 +95,7 @@ def run_crm():
         gst_entry.delete(0, END)
         pan_entry.delete(0, END)
         remarks_entry.delete(0, END)
-        conn = sqlite3.connect("data.db")
+        conn = sqlite3.connect("masters.db")
         cursor = conn.cursor()
         try:
             # Grab record Number
@@ -128,7 +128,7 @@ def run_crm():
         selected = my_tree.focus()
         values = my_tree.item(selected, 'values')
 
-        conn = sqlite3.connect("data.db")
+        conn = sqlite3.connect("masters.db")
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -186,7 +186,7 @@ def run_crm():
 
     # Add record
     def add_record():
-        conn = sqlite3.connect("data.db")
+        conn = sqlite3.connect("masters.db")
         cursor = conn.cursor()
 
         cursor.execute(
@@ -233,7 +233,7 @@ def run_crm():
         yes_no = messagebox.askyesno("Warning", "Delete the record?")
         if yes_no:
             # Deletion from Database
-            conn = sqlite3.connect("data.db")
+            conn = sqlite3.connect("masters.db")
             cursor = conn.cursor()
 
             # Grab the record number
@@ -264,11 +264,14 @@ def run_crm():
     scroll = Scrollbar(main_frame, orient="vertical", command=canvas.yview)
     scroll.pack(side=RIGHT, fill=Y)
     canvas.configure(yscrollcommand=scroll.set)
-    canvas.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
     canvas.bind('<Enter>', lambda e: canvas.bind_all("<MouseWheel>", lambda ev: scrolled(ev)))
     canvas.bind('<Leave>', lambda e: canvas.unbind_all("<MouseWheel>"))
     sec_frame = Frame(canvas)
-    canvas.create_window((0, 0), window=sec_frame, anchor=NW)
+    frame_id = canvas.create_window((0, 0), window=sec_frame, anchor=NW)
+
+    def canvas_configure(e):
+        canvas.configure(scrollregion=canvas.bbox("all"))
+        canvas.itemconfigure(frame_id, width=e.width)
 
     # Create input fields
     inp_frame = LabelFrame(sec_frame, text="Records")
@@ -340,13 +343,12 @@ def run_crm():
     clear_button.grid(row=0, column=3, padx=10, pady=10)
 
     # Search entry
-    # Search entry
     search_entry = EntryWithPlaceholder(sec_frame, "Search...")
 
     def searched(e):
         # Clear The Treeview Table
         my_tree.delete(*my_tree.get_children())
-        conn = sqlite3.connect("data.db")
+        conn = sqlite3.connect("masters.db")
         cursor = conn.cursor()
 
         # Filter by value entered in search entry
@@ -380,6 +382,7 @@ def run_crm():
 
         conn.commit()
         conn.close()
+
     search_entry.pack(fill="x", padx=20, pady=20, ipady=5)
 
     # Add treeview
@@ -412,8 +415,6 @@ def run_crm():
     # Create The Treeview
     my_tree = ttk.Treeview(tree_frame, yscrollcommand=tree_scroll.set, selectmode="browse")
     my_tree.pack(padx=20)
-
-    # Configure the Scrollbar
     tree_scroll.config(command=my_tree.yview)
 
     # Define Our Columns
@@ -439,8 +440,17 @@ def run_crm():
     my_tree.tag_configure('oddrow', background="white")
     my_tree.tag_configure('evenrow', background="lightblue")
 
+    def entered_tree(e):
+        canvas.unbind_all("<MouseWheel>")
+
+    def exit_tree(e):
+        canvas.bind_all("<MouseWheel>", lambda ev: scrolled(ev))
+
     my_tree.bind("<ButtonRelease-1>", select_records)
+    my_tree.bind("<Enter>", entered_tree)
+    my_tree.bind("<Leave>", exit_tree)
     search_entry.bind("<KeyRelease>", searched)
+    canvas.bind("<Configure>", canvas_configure)
 
     query_db()
 

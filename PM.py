@@ -41,7 +41,7 @@ def run_pm():
 
     # Enter data from db into treeview
     def query_db():
-        conn = sqlite3.connect("data.db")
+        conn = sqlite3.connect("masters.db")
         cursor = conn.cursor()
 
         cursor.execute("SELECT rowid,* FROM prod_master")
@@ -102,7 +102,7 @@ def run_pm():
         selected = my_tree.focus()
         values = my_tree.item(selected, 'values')
 
-        conn = sqlite3.connect("data.db")
+        conn = sqlite3.connect("masters.db")
         cursor = conn.cursor()
         try:
             weight = float(weight_entry.get())
@@ -142,7 +142,7 @@ def run_pm():
 
     # Add record
     def add_record():
-        conn = sqlite3.connect("data.db")
+        conn = sqlite3.connect("masters.db")
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM prod_master WHERE prod_code = :prod_code", {"prod_code": pc_entry.get()})
         pc = cursor.fetchall()
@@ -188,7 +188,7 @@ def run_pm():
         yes_no = messagebox.askyesno("Warning", "Delete the record?")
         if yes_no:
             # Deletion from Database
-            conn = sqlite3.connect("data.db")
+            conn = sqlite3.connect("masters.db")
             cursor = conn.cursor()
 
             # Grab the record number
@@ -254,12 +254,12 @@ def run_pm():
     clear_button.grid(row=0, column=3, padx=10, pady=10)
 
     # Search entry
-    search_entry = EntryWithPlaceholder(root, "Search...", borderwidth=5)
+    search_entry = EntryWithPlaceholder(root, "Search...")
 
     def searched(e):
         # Clear The Treeview Table
         my_tree.delete(*my_tree.get_children())
-        conn = sqlite3.connect("data.db")
+        conn = sqlite3.connect("masters.db")
         cursor = conn.cursor()
 
         # Filter by value entered in search entry
