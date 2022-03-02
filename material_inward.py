@@ -39,6 +39,7 @@ prod_code = ""
 item_code = ""
 weight = ""
 count = 0
+
 root = Tk()
 root.title("Material Inward")
 root.geometry("1300x500")
@@ -67,13 +68,11 @@ def gen_sl_no():
     cursor = conn.cursor()
     cursor.execute("SELECT sl_no FROM mat_inw_prim")
     this_year = datetime.datetime.now().year
-    # Sl no of last entry in db
-    temp = cursor.fetchall()[-1]
     number = ""
-    if temp is None:
-        # initial sl no
-        number = "1/" + str(this_year)
-    else:
+    not_empty = cursor.fetchone()
+    if not_empty is not None:
+        cursor.execute("SELECT sl_no FROM mat_inw_prim")
+        temp = cursor.fetchall()[-1]
         # last sl no in db
         last = temp[0]
 
@@ -87,6 +86,8 @@ def gen_sl_no():
             number = str(no) + "/" + str(this_year)
         else:
             number = str(1) + "/" + str(this_year)
+    else:
+        number = "1/" + str(this_year)
     conn.commit()
     conn.close()
     return number
@@ -106,8 +107,9 @@ def add_prim_record():
     for child in main_tree.get_children():
         values = main_tree.item(child)["values"]
 
+        # noinspection SqlInsertValues
         cursor.execute(
-            "INSERT INTO mat_inw_sec VALUES (:uid, :sl_no, :rt_no, :prod, :ic, :weight, :grade, :qty, :coverage, :remarks)",
+            "INSERT INTO mat_inw_sec VALUES (:uid, :sl_no, :rt_no, :prod, :ic, :weight, :grade, :hn, :qty, :coverage, :remarks)",
             {
                 "uid": sl_entry.get(),
                 "sl_no": values[0],
@@ -116,9 +118,10 @@ def add_prim_record():
                 "ic": values[3],
                 "weight": values[4],
                 "grade": values[5],
-                "qty": values[6],
-                "coverage": values[7],
-                "remarks": values[8]
+                "hn": values[6],
+                "qty": values[7],
+                "coverage": values[8],
+                "remarks": values[9]
             })
     conn.commit()
     conn.close()
@@ -128,15 +131,7 @@ def add_prim_record():
     cust_entry.delete(0, END)
     dc_entry.delete(0, END)
     dd_entry.delete(0, END)
-    sl2_entry.delete(0, END)
-    rt_no_entry.delete(0, END)
-    prod_entry.delete(0, END)
-    ic_entry.delete(0, END)
-    weight_entry.delete(0, END)
-    grade_entry.delete(0, END)
-    qty_entry.delete(0, END)
-    cov_entry.delete(0, END)
-    rem_entry.delete(0, END)
+    clear_entries_sec()
     # Clear The Treeview Table
     main_tree.delete(*main_tree.get_children())
 
@@ -152,34 +147,22 @@ def add_sec_record():
     item_code_loc = ic_entry.get()
     weight_loc = weight_entry.get()
     grade = grade_entry.get()
+    hn = hn_entry.get()
     qty = qty_entry.get()
     coverage = cov_entry.get()
     remarks = rem_entry.get()
     if int(sl_no) % 2 == 0:
         main_tree.insert(parent="", index="end", iid=sl2_entry.get(), text="",
-                         values=(sl_no, rt_no, prod_code_loc, item_code_loc, weight_loc, grade, qty, coverage, remarks),
+                         values=(
+                             sl_no, rt_no, prod_code_loc, item_code_loc, weight_loc, grade, hn, qty, coverage, remarks),
                          tags=("evenrow",))
     else:
         main_tree.insert(parent="", index="end", iid=sl2_entry.get(), text="",
-                         values=(sl_no, rt_no, prod_code_loc, item_code_loc, weight_loc, grade, qty, coverage, remarks),
+                         values=(
+                             sl_no, rt_no, prod_code_loc, item_code_loc, weight_loc, grade, hn, qty, coverage, remarks),
                          tags=("oddrow",))
     # Clear entry boxes
-    sl2_entry.delete(0, END)
-    sl2_entry.delete(0, END)
-    rt_no_entry.delete(0, END)
-    prod_entry.configure(state="normal")
-    prod_entry.delete(0, END)
-    prod_entry.configure(state="disabled")
-    ic_entry.configure(state="normal")
-    ic_entry.delete(0, END)
-    ic_entry.configure(state="disabled")
-    weight_entry.configure(state="normal")
-    weight_entry.delete(0, END)
-    weight_entry.configure(state="disabled")
-    grade_entry.delete(0, END)
-    qty_entry.delete(0, END)
-    cov_entry.delete(0, END)
-    rem_entry.delete(0, END)
+    clear_entries_sec()
 
     # New sl no for next record
     sl2_entry.insert(0, str(int(sl_no) + 1))
@@ -188,22 +171,7 @@ def add_sec_record():
 # Select the records from treeview
 def select_record(e):
     # Clear entry boxes
-    sl2_entry.delete(0, END)
-    sl2_entry.delete(0, END)
-    rt_no_entry.delete(0, END)
-    prod_entry.configure(state="normal")
-    prod_entry.delete(0, END)
-    prod_entry.configure(state="disabled")
-    ic_entry.configure(state="normal")
-    ic_entry.delete(0, END)
-    ic_entry.configure(state="disabled")
-    weight_entry.configure(state="normal")
-    weight_entry.delete(0, END)
-    weight_entry.configure(state="disabled")
-    grade_entry.delete(0, END)
-    qty_entry.delete(0, END)
-    cov_entry.delete(0, END)
-    rem_entry.delete(0, END)
+    clear_entries_sec()
 
     try:
         selected = main_tree.focus()
@@ -218,14 +186,13 @@ def select_record(e):
         ic_entry.delete(0, END)
         ic_entry.insert(0, values[3])
         ic_entry.configure(state="disabled")
-        weight_entry.configure(state="normal")
         weight_entry.delete(0, END)
         weight_entry.insert(0, values[4])
-        weight_entry.configure(state="disabled")
         grade_entry.insert(0, values[5])
-        qty_entry.insert(0, values[6])
-        cov_entry.insert(0, values[7])
-        rem_entry.insert(0, values[8])
+        hn_entry.insert(0, values[6])
+        qty_entry.insert(0, values[7])
+        cov_entry.insert(0, values[8])
+        rem_entry.insert(0, values[9])
 
     except IndexError:
         pass
@@ -238,17 +205,13 @@ def clear_entries_sec():
     rt_no_entry.delete(0, END)
     prod_entry.configure(state="normal")
     prod_entry.delete(0, END)
-
     prod_entry.configure(state="disabled")
     ic_entry.configure(state="normal")
     ic_entry.delete(0, END)
-
     ic_entry.configure(state="disabled")
-    weight_entry.configure(state="normal")
     weight_entry.delete(0, END)
-
-    weight_entry.configure(state="disabled")
     grade_entry.delete(0, END)
+    hn_entry.delete(0, END)
     qty_entry.delete(0, END)
     cov_entry.delete(0, END)
     rem_entry.delete(0, END)
@@ -258,7 +221,8 @@ def clear_entries_sec():
 def update_record():
     selected = main_tree.focus()
     main_tree.item(selected, text="", values=(sl2_entry.get(), rt_no_entry.get(), prod_entry.get(), ic_entry.get(),
-                                              weight_entry.get(), grade_entry.get(), qty_entry.get(), cov_entry.get(),
+                                              weight_entry.get(), grade_entry.get(), qty_entry.get(), hn_entry.get(),
+                                              cov_entry.get(),
                                               rem_entry.get()))
     clear_entries_sec()
 
@@ -272,18 +236,19 @@ def delete_entry():
     sl_no = 1
     for child in main_tree.get_children():
         values = main_tree.item(child)["values"]
+        main_tree.delete(child)
         if int(sl_no) % 2 == 0:
-            main_tree.item(child, text="",
-                           values=(
-                               sl_no, values[1], values[2], values[3], values[4], values[5], values[6], values[7],
-                               values[8]),
-                           tags=("evenrow",))
+            main_tree.insert(parent="", index="end", iid=sl_no, text="",
+                             values=(
+                                 sl_no, values[1], values[2], values[3], values[4], values[5], values[6], values[7],
+                                 values[8], values[9]),
+                             tags=("evenrow",))
         else:
-            main_tree.item(child, text="",
-                           values=(
-                               sl_no, values[1], values[2], values[3], values[4], values[5], values[6], values[7],
-                               values[8]),
-                           tags=("oddrow",))
+            main_tree.insert(parent="", index="end", iid=sl_no, text="",
+                             values=(
+                                 sl_no, values[1], values[2], values[3], values[4], values[5], values[6], values[7],
+                                 values[8], values[9]),
+                             tags=("oddrow",))
 
         sl_no += 1
     # Clear entries
@@ -521,7 +486,7 @@ prod_entry = Entry(bottom_frame, state="disabled")
 ic_label = Label(bottom_frame, text="Item Code")
 ic_entry = Entry(bottom_frame, state="disabled")
 weight_label = Label(bottom_frame, text="Weight")
-weight_entry = Entry(bottom_frame, state="disabled")
+weight_entry = Entry(bottom_frame)
 
 
 # Function for selecting the customer
@@ -535,7 +500,7 @@ def select_rt_details():
         try:
             sel = prod_tree.focus()
             rowid = prod_tree.item(sel, "values")[0]
-            cursor.execute("SELECT prod_code, item_code, weight FROM prod_master WHERE rowid=:id", {"id": rowid})
+            cursor.execute("SELECT desc, item_code, weight FROM prod_master WHERE rowid=:id", {"id": rowid})
             val = cursor.fetchall()
             global prod_code, item_code, weight
             prod_code = val[0][0]
@@ -622,10 +587,8 @@ def select_rt_details():
         ic_entry.delete(0, END)
         ic_entry.insert(0, item_code)
         ic_entry.configure(state="disabled")
-        weight_entry.configure(state="normal")
         weight_entry.delete(0, END)
         weight_entry.insert(0, weight)
-        weight_entry.configure(state="disabled")
         menu.destroy()
 
     menu.title("Browse")
@@ -715,6 +678,8 @@ def select_rt_details():
 btn_rt_details = Button(bottom_frame, text="Browse", command=select_rt_details)
 grade_label = Label(bottom_frame, text="Grade")
 grade_entry = Entry(bottom_frame)
+hn_label = Label(bottom_frame, text="Heat No")
+hn_entry = Entry(bottom_frame)
 qty_label = Label(bottom_frame, text="Quantity")
 qty_entry = Entry(bottom_frame)
 cov_label = Label(bottom_frame, text="Coverage")
@@ -735,12 +700,14 @@ weight_label.grid(row=1, column=2, padx=5, pady=5)
 weight_entry.grid(row=1, column=3, padx=5, pady=5)
 grade_label.grid(row=1, column=4, padx=5, pady=5)
 grade_entry.grid(row=1, column=5, padx=5, pady=5)
-qty_label.grid(row=1, column=6, padx=5, pady=5)
-qty_entry.grid(row=1, column=7, padx=5, pady=5)
-cov_label.grid(row=2, column=0, padx=5, pady=5)
-cov_entry.grid(row=2, column=1, padx=5, pady=5)
-rem_label.grid(row=2, column=2, padx=5, pady=5)
-rem_entry.grid(row=2, column=3, padx=5, pady=5)
+hn_label.grid(row=1, column=6, padx=5, pady=5)
+hn_entry.grid(row=1, column=7, padx=5, pady=5)
+qty_label.grid(row=2, column=0, padx=5, pady=5)
+qty_entry.grid(row=2, column=1, padx=5, pady=5)
+cov_label.grid(row=2, column=2, padx=5, pady=5)
+cov_entry.grid(row=2, column=3, padx=5, pady=5)
+rem_label.grid(row=2, column=4, padx=5, pady=5)
+rem_entry.grid(row=2, column=5, padx=5, pady=5)
 
 # Create buttons for the secondary entries
 secondary_frame = LabelFrame(sec_frame, text="Secondary Commands")
@@ -788,7 +755,8 @@ main_tree.pack(padx=20)
 tree_scroll.config(command=main_tree.yview)
 
 # Define Our Columns
-main_tree['columns'] = ("Sl No", "RT No", "Product", "Item Code", "Weight", "Grade", "Quantity", "Coverage", "Remarks")
+main_tree['columns'] = (
+    "Sl No", "RT No", "Product", "Item Code", "Weight", "Grade", "Heat No", "Quantity", "Coverage", "Remarks")
 
 # Format Our Columns
 main_tree.column("#0", width=0, stretch=NO)
@@ -798,6 +766,7 @@ main_tree.column("Product", anchor=W, width=200)
 main_tree.column("Item Code", anchor=CENTER, width=200)
 main_tree.column("Weight", anchor=CENTER, width=200)
 main_tree.column("Grade", anchor=CENTER, width=200)
+main_tree.column("Heat No", anchor=CENTER, width=200)
 main_tree.column("Quantity", anchor=CENTER, width=200)
 main_tree.column("Coverage", anchor=CENTER, width=200)
 main_tree.column("Remarks", anchor=CENTER, width=200)
@@ -810,6 +779,7 @@ main_tree.heading("Product", text="Product", anchor=W)
 main_tree.heading("Item Code", text="Item Code", anchor=CENTER)
 main_tree.heading("Weight", text="Weight", anchor=CENTER)
 main_tree.heading("Grade", text="Grade", anchor=CENTER)
+main_tree.heading("Heat No", text="Heat No", anchor=CENTER)
 main_tree.heading("Quantity", text="Quantity", anchor=CENTER)
 main_tree.heading("Coverage", text="Coverage", anchor=CENTER)
 main_tree.heading("Remarks", text="Remarks", anchor=CENTER)

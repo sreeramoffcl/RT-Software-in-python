@@ -54,6 +54,7 @@ cursor_trans.execute("""CREATE TABLE if not exists mat_inw_sec (
         ic text,
         weight real,
         grade text,
+        heat_no text,
         qty text,
         coverage text,
         remarks text
