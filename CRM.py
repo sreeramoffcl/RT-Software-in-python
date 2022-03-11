@@ -253,9 +253,9 @@ def run_crm():
             query_db()
         clear_entries()
 
-    root = Tk()
+    root = Toplevel()
     root.title("Customer masters")
-    root.geometry("1200x500")
+    root.geometry("1300x500")
 
     main_frame = Frame(root)
     main_frame.pack(fill=BOTH, expand=1)

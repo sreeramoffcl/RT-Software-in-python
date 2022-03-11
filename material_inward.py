@@ -1,5 +1,6 @@
 from tkinter import *
 from tkinter import ttk
+from ttkwidgets.autocomplete import AutocompleteCombobox
 import tkinter as tk
 import platform
 import datetime
@@ -34,16 +35,56 @@ class EntryWithPlaceholder(tk.Entry):
             self.put_placeholder()
 
 
+# AutocompleteCombobox but only accepts entries from list
+class MatchOnlyAutocompleteCombobox(AutocompleteCombobox):
+
+    def autocomplete(self, delta=0):
+        """
+        Autocomplete the Combobox.
+
+        :param delta: 0, 1 or -1: how to cycle through possible hits
+        :type delta: int
+        """
+        if delta:  # need to delete selection otherwise we would fix the current position
+            self.delete(self.position, END)
+        else:  # set position to end so selection starts where textentry ended
+            self.position = len(self.get())
+        # collect hits
+        _hits = []
+        for element in self._completion_list:
+            if element.lower().startswith(self.get().lower()):  # Match case insensitively
+                _hits.append(element)
+
+        if not _hits:
+            # No hits with current user text input
+            self.position -= 1  # delete one character
+            self.delete(self.position, END)
+            # Display again last matched autocomplete
+            self.autocomplete(delta)
+            return
+
+        # if we have a new hit list, keep this in mind
+        if _hits != self._hits:
+            self._hit_index = 0
+            self._hits = _hits
+        # only allow cycling if we are in a known hit list
+        if _hits == self._hits and self._hits:
+            self._hit_index = (self._hit_index + delta) % len(self._hits)
+        # now finally perform the auto completion
+        if self._hits:
+            self.delete(0, END)
+            self.insert(0, self._hits[self._hit_index])
+            self.select_range(self.position, END)
+
+
+# Initialize values
 customer = ""
 prod_code = ""
 item_code = ""
 weight = ""
 count = 0
-
-root = Tk()
-root.title("Material Inward")
-root.geometry("1300x500")
-
+grade = ["WCB", 'WCC', 'WC6', 'WC9', '4A', '5A', 'C12', 'C12A']
+coverage = ['100%', '16.34', 'Checkshot']
 # Get customer names as list
 conn = sqlite3.connect("masters.db")
 cursor = conn.cursor()
@@ -51,6 +92,11 @@ cursor.execute("SELECT cust_name FROM cust_master")
 cust_names = [i[0] for i in cursor.fetchall()]
 conn.commit()
 conn.close()
+
+
+root = Tk()
+root.title("Material Inward")
+root.geometry("1300x500")
 
 
 # Functions for functionalities
@@ -107,7 +153,6 @@ def add_prim_record():
     for child in main_tree.get_children():
         values = main_tree.item(child)["values"]
 
-        # noinspection SqlInsertValues
         cursor.execute(
             "INSERT INTO mat_inw_sec VALUES (:uid, :sl_no, :rt_no, :prod, :ic, :weight, :grade, :hn, :qty, :coverage, :remarks)",
             {
@@ -137,6 +182,11 @@ def add_prim_record():
 
     # Generate new sl no
     sl_entry.insert(0, gen_sl_no())
+    sl2_entry.insert(0, "1")
+    dd_entry.insert(0, datetime.date.today().strftime("%d/%m/%Y"))
+
+    # Focus cust details
+    cust_entry.focus()
 
 
 # Add secondary record to treeview
@@ -146,26 +196,30 @@ def add_sec_record():
     prod_code_loc = prod_entry.get()
     item_code_loc = ic_entry.get()
     weight_loc = weight_entry.get()
-    grade = grade_entry.get()
+    grade_temp = grade_entry.get()
     hn = hn_entry.get()
     qty = qty_entry.get()
-    coverage = cov_entry.get()
+    coverage_temp = cov_entry.get()
     remarks = rem_entry.get()
     if int(sl_no) % 2 == 0:
         main_tree.insert(parent="", index="end", iid=sl2_entry.get(), text="",
                          values=(
-                             sl_no, rt_no, prod_code_loc, item_code_loc, weight_loc, grade, hn, qty, coverage, remarks),
+                             sl_no, rt_no, prod_code_loc, item_code_loc, weight_loc, grade_temp, hn, qty,
+                             coverage_temp, remarks),
                          tags=("evenrow",))
     else:
         main_tree.insert(parent="", index="end", iid=sl2_entry.get(), text="",
                          values=(
-                             sl_no, rt_no, prod_code_loc, item_code_loc, weight_loc, grade, hn, qty, coverage, remarks),
+                             sl_no, rt_no, prod_code_loc, item_code_loc, weight_loc, grade_temp, hn, qty,
+                             coverage_temp, remarks),
                          tags=("oddrow",))
     # Clear entry boxes
     clear_entries_sec()
 
     # New sl no for next record
     sl2_entry.insert(0, str(int(sl_no) + 1))
+    # Focus rt no entry
+    rt_no_entry.focus()
 
 
 # Select the records from treeview
@@ -257,6 +311,67 @@ def delete_entry():
     sl2_entry.insert(0, sl_no)
 
 
+# View and edit existing DCs
+def view_dc(e):
+    dc_no_cond = dc_entry.get()
+    if dc_no_cond:
+        dc_no = dc_entry.get()[:-1]
+        dc_entry.delete(0, END)
+        dc_entry.insert(0, dc_no)
+
+        conn = sqlite3.connect("transactions.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM mat_inw_prim WHERE dc_no = :dc_no", {'dc_no': dc_no})
+        prim_entry = cursor.fetchall()
+        cursor.execute("SELECT * FROM mat_inw_sec WHERE uid = :uid", {'uid': prim_entry[0][0]})
+        sec_entries = cursor.fetchall()
+        sl_entry.delete(0, END)
+        sl_entry.insert(0, prim_entry[0][0])
+        cust_entry.delete(0, END)
+        cust_entry.insert(0, prim_entry[0][1])
+        dc_entry.delete(0, END)
+        dc_entry.insert(0, prim_entry[0][2])
+        dd_entry.delete(0, END)
+        dd_entry.insert(0, prim_entry[0][3])
+        clear_entries_sec()
+        # Add our data to the screen
+        global count
+        count = 0
+
+        for record in sec_entries:
+
+            if count % 2 == 0:
+                main_tree.insert(parent="", index="end", iid=record[0][1], text="",
+                                 values=(
+                                     record[1], record[2], record[3], record[4], record[5], record[6], record[7],
+                                     record[8], record[9], record[10]
+                                     ),
+                                 tags=("evenrow",))
+            else:
+                main_tree.insert(parent="", index="end", iid=record[0][1], text="",
+                                 values=(
+                                     record[1], record[2], record[3], record[4], record[5], record[6], record[7],
+                                     record[8], record[9], record[10]
+                                     ),
+                                 tags=("oddrow",))
+            # increment counter
+            count += 1
+        conn.commit()
+        conn.close()
+    else:
+        return
+
+
+def validate(e):
+    keys = ["F1", 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12']
+    print(dc_entry.get())
+    print(e.keysym)
+    for i in keys:
+        print(i)
+        if e.keysym == i:
+            return
+
+
 # Create canvas for assigning scrollbar
 main_frame = Frame(root)
 main_frame.pack(fill=BOTH, expand=1)
@@ -269,6 +384,7 @@ sec_frame = Frame(canvas)
 frame_id = canvas.create_window((0, 0), window=sec_frame, anchor=NW)
 
 
+# Maximize width of widgets in the canvas
 def canvas_configure(e):
     canvas.configure(scrollregion=canvas.bbox("all"))
     canvas.itemconfigure(frame_id, width=e.width)
@@ -281,196 +397,23 @@ sl_label = Label(top_frame, text="Sl No")
 sl_entry = Entry(top_frame)
 sl_entry.insert(0, gen_sl_no())
 cust_label = Label(top_frame, text="Customer")
-cust_entry = Entry(top_frame, state="disabled")
-
-
-# Function for selecting the customer
-def select_customer():
-    menu = Toplevel()
-
-    # Select Customer
-    def selected(e):
-        conn = sqlite3.connect("masters.db")
-        cursor = conn.cursor()
-        try:
-            sel = cust_tree.focus()
-            rowid = cust_tree.item(sel, "values")[0]
-            cursor.execute("SELECT cust_name FROM cust_master WHERE rowid=:id", {"id": rowid})
-            global customer
-            customer = cursor.fetchall()[0][0]
-
-        except IndexError:
-            pass
-        conn.commit()
-        conn.close()
-
-    # Enter data from db into treeview
-    def query_db():
-        conn = sqlite3.connect("masters.db")
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT rowid,* FROM cust_master")
-        records = cursor.fetchall()
-        # Add our data to the screen
-        global count
-        count = 0
-
-        for record in records:
-            if count % 2 == 0:
-                cust_tree.insert(parent='', index='end', iid=count, text='',
-                                 values=(record[0], record[1], record[2], record[9], record[10]),
-                                 tags=('evenrow',))
-            else:
-                cust_tree.insert(parent='', index='end', iid=count, text='',
-                                 values=(record[0], record[1], record[2], record[9], record[10]),
-                                 tags=('oddrow',))
-            # increment counter
-            count += 1
-
-        conn.commit()
-        conn.close()
-
-    def searched(e):
-        # Clear The Treeview Table
-        cust_tree.delete(*cust_tree.get_children())
-        conn = sqlite3.connect("masters.db")
-        cursor = conn.cursor()
-
-        # Filter by value entered in search entry
-        search_val = "%" + search_entry.get() + "%"
-
-        cursor.execute("""SELECT rowid,* FROM cust_master WHERE
-                cust_name LIKE :search
-            """, {
-            "search": search_val
-        })
-        records = cursor.fetchall()
-
-        # Add our data to the screen
-
-        count1 = 0
-
-        for record in records:
-            if count1 % 2 == 0:
-                cust_tree.insert(parent='', index='end', iid=count1, text='',
-                                 values=(record[0], record[1], record[2], record[9], record[10]),
-                                 tags=('evenrow',))
-            else:
-                cust_tree.insert(parent='', index='end', iid=count1, text='',
-                                 values=(record[0], record[1], record[2], record[9], record[10]),
-                                 tags=('oddrow',))
-            # increment counter
-            count1 += 1
-
-        conn.commit()
-        conn.close()
-
-    def submitted():
-        cust_entry.configure(state="normal")
-        cust_entry.delete(0, END)
-        cust_entry.insert(0, customer)
-        cust_entry.configure(state="disabled")
-        menu.destroy()
-
-    menu.title("Browse")
-    menu.geometry("1000x400")
-
-    # Search entry
-    search_frame = Frame(menu)
-    search_frame.pack()
-    search_entry = EntryWithPlaceholder(search_frame, "Search...")
-
-    search_entry.grid(row=0, column=0, padx=20, pady=20, ipady=5)
-    btn_submit = Button(search_frame, text="Submit", command=submitted)
-    btn_submit.grid(row=0, column=1, padx=20, pady=20, ipady=5)
-    search_entry.bind("<KeyRelease>", searched)
-
-    # Add treeview
-
-    # Add Some Style
-    style = ttk.Style()
-
-    # Pick A Theme
-    style.theme_use('default')
-
-    # Configure the Treeview Colors
-    style.configure("Treeview",
-                    background="#D3D3D3",
-                    foreground="black",
-                    rowheight=25,
-                    fieldbackground="#D3D3D3")
-
-    # Change Selected Color
-    style.map('Treeview',
-              background=[('selected', "#347083")])
-
-    # Create a Treeview Frame
-    tree_frame1 = Frame(menu)
-    tree_frame1.pack()
-
-    # Create a Treeview Scrollbar
-    tree_scroll1 = Scrollbar(tree_frame1)
-    tree_scroll1.pack(side=RIGHT, fill=Y)
-    tree_scroll2 = Scrollbar(tree_frame1, orient="horizontal")
-    tree_scroll2.pack(side=BOTTOM, fill=X)
-
-    # Create The Treeview
-    cust_tree = ttk.Treeview(tree_frame1, yscrollcommand=tree_scroll1.set, xscrollcommand=tree_scroll2.set,
-                             selectmode="browse")
-    cust_tree.pack(padx=20)
-    tree_scroll1.config(command=cust_tree.yview)
-    tree_scroll2.config(command=cust_tree.xview)
-
-    # Define Our Columns
-    cust_tree['columns'] = ("ID", "Customer Code", "Customer Name", "GST", "PAN")
-
-    # Format Our Columns
-    cust_tree.column("#0", width=0, stretch=NO)
-    cust_tree.column("ID", anchor=W, width=75)
-    cust_tree.column("Customer Code", anchor=W, width=200)
-    cust_tree.column("Customer Name", anchor=W, width=200)
-    cust_tree.column("GST", anchor=CENTER, width=300)
-    cust_tree.column("PAN", anchor=CENTER, width=300)
-
-    # Create Headings
-    cust_tree.heading("#0", text="", anchor=W)
-    cust_tree.heading("ID", text="ID", anchor=W)
-    cust_tree.heading("Customer Code", text="Customer Code", anchor=W)
-    cust_tree.heading("Customer Name", text="Customer Name", anchor=W)
-    cust_tree.heading("GST", text="GST", anchor=CENTER)
-    cust_tree.heading("PAN", text="PAN", anchor=CENTER)
-
-    # Create Striped Row Tags
-    cust_tree.tag_configure('oddrow', background="white")
-    cust_tree.tag_configure('evenrow', background="lightblue")
-    cust_tree.bind("<ButtonRelease-1>", selected)
-    query_db()
-
-
-btn_cust = Button(top_frame, text="Browse", command=select_customer)
+cust_entry = MatchOnlyAutocompleteCombobox(top_frame, completevalues=cust_names)
+cust_entry.focus()
+lst = tk.Listbox(top_frame, bd=0, bg='white')
 dc_label = Label(top_frame, text="DC No")
 dc_entry = Entry(top_frame)
 dd_label = Label(top_frame, text="DC Date")
 dd_entry = Entry(top_frame)
+dd_entry.insert(0, datetime.date.today().strftime("%d/%m/%Y"))
 
 sl_label.grid(row=0, column=0, padx=5, pady=5)
 sl_entry.grid(row=0, column=1, padx=5, pady=5)
 cust_label.grid(row=0, column=2, padx=5, pady=5)
 cust_entry.grid(row=0, column=3, padx=5, pady=5)
-btn_cust.grid(row=0, column=4, padx=5, pady=5, ipadx=10)
 dc_label.grid(row=0, column=5, padx=5, pady=5)
 dc_entry.grid(row=0, column=6, padx=5, pady=5)
 dd_label.grid(row=0, column=7, padx=5, pady=5)
 dd_entry.grid(row=0, column=8, padx=5, pady=5)
-
-# Create buttons for the primary entries
-prim_frame = LabelFrame(sec_frame, text="Primary Commands")
-prim_frame.pack(fill=X, padx=20, pady=10)
-
-btn_add = Button(prim_frame, text="Add Record", command=add_prim_record)
-btn_clear = Button(prim_frame, text="Clear Entries")
-btn_add.grid(row=0, column=0, padx=5, pady=5, ipadx=10)
-btn_clear.grid(row=0, column=1, padx=5, pady=5, ipadx=10)
 
 # Create secondary entries
 bottom_frame = LabelFrame(sec_frame, text="Secondary Entries")
@@ -486,7 +429,6 @@ prod_entry = Entry(bottom_frame, state="disabled")
 ic_label = Label(bottom_frame, text="Item Code")
 ic_entry = Entry(bottom_frame, state="disabled")
 weight_label = Label(bottom_frame, text="Weight")
-weight_entry = Entry(bottom_frame)
 
 
 # Function for selecting the customer
@@ -676,14 +618,15 @@ def select_rt_details():
 
 
 btn_rt_details = Button(bottom_frame, text="Browse", command=select_rt_details)
+weight_entry = Entry(bottom_frame)
 grade_label = Label(bottom_frame, text="Grade")
-grade_entry = Entry(bottom_frame)
+grade_entry = MatchOnlyAutocompleteCombobox(bottom_frame, completevalues=grade)
 hn_label = Label(bottom_frame, text="Heat No")
 hn_entry = Entry(bottom_frame)
 qty_label = Label(bottom_frame, text="Quantity")
 qty_entry = Entry(bottom_frame)
 cov_label = Label(bottom_frame, text="Coverage")
-cov_entry = Entry(bottom_frame)
+cov_entry = MatchOnlyAutocompleteCombobox(bottom_frame, completevalues=coverage)
 rem_label = Label(bottom_frame, text="Remarks")
 rem_entry = Entry(bottom_frame)
 
@@ -797,11 +740,26 @@ def exit_tree(e):
     canvas.bind_all("<MouseWheel>", lambda ev: scrolled(ev))
 
 
+# Create buttons for the primary entries
+prim_frame = LabelFrame(sec_frame, text="Primary Commands")
+prim_frame.pack(fill=X, padx=20, pady=10)
+btn_add = Button(prim_frame, text="Add Record", command=add_prim_record)
+btn_update = Button(prim_frame, text="Update")
+btn_add.grid(row=0, column=0, padx=5, pady=5, ipadx=10)
+btn_update.grid(row=0, column=1, padx=5, pady=5, ipadx=10)
+
+
 main_tree.bind("<Enter>", entered_tree)
 main_tree.bind("<Leave>", exit_tree)
 main_tree.bind("<ButtonRelease-1>", select_record)
 canvas.bind("<Configure>", canvas_configure)
+# Bind mouse wheel for setting scrollbar on entering
 canvas.bind('<Enter>', lambda e: canvas.bind_all("<MouseWheel>", lambda ev: scrolled(ev)))
 canvas.bind('<Leave>', lambda e: canvas.unbind_all("<MouseWheel>"))
+cov_entry.unbind_class("TCombobox", "<MouseWheel>")
+btn_add_sec.bind("<Return>", lambda e: add_sec_record())
+btn_rt_details.bind("<Return>", lambda e: select_rt_details())
+sl_entry.bind("<Key>", validate)
+root.bind("<F9>", view_dc)
 
 root.mainloop()

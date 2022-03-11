@@ -33,7 +33,7 @@ class EntryWithPlaceholder(tk.Entry):
 
 
 def run_pm():
-    root = Tk()
+    root = Toplevel()
     root.title('Product master')
     root.geometry("1300x500")
 
