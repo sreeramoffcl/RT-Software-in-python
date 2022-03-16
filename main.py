@@ -2,8 +2,11 @@ from tkinter import *
 import sqlite3
 import CRM
 import PM
+import material_inward
+
 
 root = Tk()
+root.eval('tk::PlaceWindow . center')
 root.title("Menu")
 root.geometry("700x300")
 
@@ -17,6 +20,16 @@ cursor_mast.execute("""CREATE TABLE if not exists prod_master (
     draw_no text,
     desc text,
     weight real
+)
+""")
+
+cursor_mast.execute("""CREATE TABLE if not exists grade_master (
+    grade text
+)
+""")
+
+cursor_mast.execute("""CREATE TABLE if not exists coverage_master (
+    coverage text
 )
 """)
 
@@ -64,21 +77,13 @@ conn_trans.commit()
 conn_trans.close()
 
 
-def prod_master():
-    PM.run_pm()
-
-
-def cust_master():
-    CRM.run_crm()
-
-
 def masters():
     menu = Toplevel()
     menu.title("Masters")
     menu.geometry("400x200")
-    btn_prod_mas = Button(menu, text="Product Master", command=prod_master)
+    btn_prod_mas = Button(menu, text="Product Master", command=PM.run_pm)
     btn_prod_mas.pack(padx=20, pady=10, ipadx=20)
-    btn_cus_mas = Button(menu, text="Customer Master", command=cust_master)
+    btn_cus_mas = Button(menu, text="Customer Master", command=CRM.run_crm)
     btn_cus_mas.pack(padx=20, pady=10, ipadx=15)
     btn_exit = Button(menu, text="Exit", command=menu.destroy)
     btn_exit.pack(padx=20, pady=10, ipadx=60)
@@ -87,7 +92,7 @@ def masters():
 def transactions():
     menu = Toplevel()
     menu.title("Transactions")
-    btn_prod_mas = Button(menu, text="Material Inward")
+    btn_prod_mas = Button(menu, text="Material Inward", command=material_inward.material_inward)
     btn_prod_mas.pack(padx=20, pady=10, ipadx=20)
     btn_cus_mas = Button(menu, text="Material Outward")
     btn_cus_mas.pack(padx=20, pady=10, ipadx=15)
